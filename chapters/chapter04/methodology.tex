@@ -1,0 +1,341 @@
+%
+% File: methodology.tex
+% Author: Tengxiang Li
+%
+\chapter{Methodology}
+\label{chap:Methodology}
+\setlength{\parskip}{1em}
+%
+
+\section{Overview}
+
+The primary objective of this chapter is to delineate the experimental framework employed to evaluate Proximal Policy Optimization (PPO), Evolution Strategies (ES), and Augmented Random Search (ARS-V2) in continuous control tasks. Crucially, this study is not designed to determine which algorithm achieves the highest absolute performance after exhaustive, environment-specific hyperparameter optimization. Instead, it serves as a rigorous ``stress test'' of intrinsic algorithmic robustness under fixed constraints.
+
+We evaluate these optimization paradigms utilizing a strict ``zero-tuning'' protocol across a unified 3-million-step data budget. This approach forces the algorithms to generalize across diverse physical morphologies ``out-of-the-box,'' thereby isolating the baseline adaptability of the algorithms from the researcher's tuning effort. Furthermore, we detail the computational infrastructure utilized---specifically the Apple Silicon (M1 Pro) Unified Memory Architecture. By establishing a synchronized hyperparameter framework, we transition from assessing raw peak performance to isolating the divergence between sample efficiency (data requirements) and temporal throughput (wall-clock training speed) in both serial and distributed multi-worker contexts.
+
+\section{Evaluation Gap and Proposed Extensions}
+
+Prior evaluations of continuous-control algorithms commonly condense each training run into a single scalar performance metric. As documented in the seminal works of \citep{schulman2017ppo} and \citep{mania2018randomsearch}, the conventional methodology typically comprises the following steps:
+
+\begin{itemize}
+    \item \textbf{Stochastic Sampling:} Execution of multiple independent seeds per algorithm configuration to account for initialization and environment stochasticity.
+
+    \item \textbf{Performance Compression:} Aggregation of each run into a single scalar score by averaging the final 100 episodic returns.
+
+    \item \textbf{Normalization:} Normalization of scores, where 0 represents random performance and 1 corresponds to a ``best-observed'' or ``human-expert'' baseline.
+
+    \item \textbf{Final Aggregation:} Computation of a final normalized performance metric across all seeds.
+\end{itemize}
+
+While this approach facilitates cross-environment ranking, it creates a transparency gap regarding the computational trade-offs, hardware realities, and behavioral reliability of the agents. This scalar-centric paradigm obscures several critical dimensions of algorithmic performance:
+
+\begin{itemize}
+    \item \textbf{The ``Zero-Tuning'' Reproducibility Crisis:} Standard benchmarks rarely enforce fixed hyperparameters across diverse environments. Consequently, reported successes often reflect human-in-the-loop tuning rather than an algorithm's intrinsic ability to navigate new state-action spaces autonomously.
+
+    \item \textbf{The Hardware and Scalability Gap:} Foundational benchmarks typically rely on massive, high-cost GPU clusters. There is a distinct lack of empirical data regarding how these algorithms scale on consumer-grade, unified memory architectures (like the M1 Pro), particularly concerning inter-process communication overhead.
+
+    \item \textbf{Algorithmic Consistency (Robustness):} The traditional approach conflates ``lucky'' seeds with algorithmic stability. High average performance can often mask a high failure rate where a subset of agents fails to converge entirely.
+
+    \item \textbf{Convergence Dynamics (Learning Rate):} It ignores the ``path to the peak.'' Two algorithms may reach the same final score, but one may plateau in 100k steps while the other requires the full 3-million-step budget.
+
+    \item \textbf{Policy Qualitative Integrity:} Quantitative metrics cannot differentiate between a ``natural'' locomotion gait and one that exploits simulator glitches or achieves high rewards through jittery, physically unsustainable movements.
+\end{itemize}
+
+To bridge these gaps, this study extends the standard paradigm by introducing a Four-Pillar Evaluation Framework (detailed in Section~4.9). By analyzing Performance, Efficiency, Robustness, and Behavior in tandem under fixed constraints, we move beyond asking ``who wins'' to investigating ``at what cost'' and ``with what level of reliability.''
+\section{Multidimensional Evaluation Framework}
+
+To address the transparency gap in standard benchmarking, this study implements a four-pillar multidimensional framework. By capturing high-resolution training trajectories rather than terminal scalars, the methodology extracts a holistic profile of algorithmic performance across the following domains:
+
+\begin{itemize}
+    \item \textbf{Asymptotic and Cumulative Performance:} We distinguish between the Final Policy Score (the mean return of the final 10\% of training) and the Cumulative Reward (the area under the learning curve). This differentiation identifies agents that achieve high final performance but exhibit slow or unstable ``warm-up'' periods.
+    
+    \item \textbf{Sample and Temporal Efficiency:} We evaluate efficiency through two lenses: Sample Complexity, defined as the total environment interactions required for an algorithm to achieve its maximum recorded reward within the training budget, and Temporal Throughput, measured in wall-clock time and Steps Per Second (SPS). This dual-metric approach focuses on the internal convergence behavior of each algorithm, exposing the trade-off between the mathematical sample efficiency of PPO and the high-frequency computational throughput of ARS.
+    
+    \item \textbf{Statistical Robustness and Convergence Stability:} To quantify algorithmic reliability, we utilize shaded standard deviation regions across six independent random seeds. This allows for the visualization of inter-seed variance, identifying whether an algorithm’s success is a result of consistent optimization or ``seed-lucky'' initial conditions.
+    
+    \item \textbf{Qualitative Gait Analysis (Policy Behavior):} Recognizing that numerical rewards can be misleading, we supplement quantitative data with visual assessments. This analysis categorizes gaits into ``Naturalistic Locomotion'' (rhythmic, forward-moving) and ``Sub-optimal Exploitation'' (sliding, jittering, or surviving via physics-engine artifacts).
+\end{itemize}
+
+
+\section{Benchmarking Methods and Baseline Selection}
+
+The experimental study evaluates three distinct paradigms of policy optimization within the MuJoCo locomotion suite. Baselines were selected to represent a broad spectrum of modern Reinforcement Learning (RL) and optimization methods, ranging from gradient-dense deep learning to minimalist random search. The theoretical underpinnings, mathematical formulations, and historical context for each selected method are detailed in Chapter 3. Selecting algorithms with fundamentally different mathematical foundations allows for a rigorous investigation into how algorithmic complexity impacts performance, efficiency, and robustness in both serial (1-worker) and parallel (4-worker) execution contexts.
+
+\subsection{Criteria for Baseline Selection}
+
+Algorithms were selected according to the following criteria:
+
+\begin{itemize}
+    \item \textbf{Methodological Diversity:} The study includes gradient-based (PPO), evolutionary (ES), and random search (ARS) approaches. This enables a comparative assessment of agents that explore via stochastic actions (Action-Space Exploration) versus those that explore via weight perturbations (Parameter-Space Exploration).
+    
+    \item \textbf{Benchmarking Standards:} PPO serves as the industry-standard for sample efficiency, providing a benchmark for the maximum reward achievable per environment interaction. ARS serves as a benchmark for model parsimony, specifically testing whether high-dimensional locomotion tasks actually necessitate deep neural architectures or if linear controllers are sufficient.
+    
+    \item \textbf{Parallelization and Scalability:} Algorithms were selected based on their distinct computational footprints. This allows for a direct contrast between the heavyweight backpropagation required by PPO and the lightweight, derivative-free forward passes of ES and ARS. This is critical for evaluating throughput (Steps Per Second) and parallel speedup when transitioning from 1-worker to 4-worker configurations on unified memory architectures like the Apple M1 Pro.
+\end{itemize}
+
+\subsection{Selected Baselines}
+
+\subsubsection{Proximal Policy Optimization (PPO)}
+
+Designated as the primary gradient-based baseline, PPO represents the state-of-the-art in deep actor-critic methods. Its inclusion allows for a rigorous assessment of:
+
+\begin{itemize}
+    \item \textbf{Stability Mechanisms:} How trust-region clipping maintains monotonic improvement compared to the unconstrained exploration of search-based methods.
+    
+    \item \textbf{Resource Overhead:} Quantifying whether the computational cost of backpropagation and advantage estimation yields a proportional gain in sample efficiency.
+\end{itemize}
+
+\subsubsection{OpenAI Evolution Strategies (OpenAI-ES)}
+
+OpenAI-ES serves as the black-box baseline, estimating gradients through Gaussian perturbations. This algorithm provides a contrast to PPO by evaluating:
+
+\begin{itemize}
+    \item \textbf{Distributed Scalability:} The efficiency of population-based methods on Apple Silicon, where communication overhead often bottlenecks deep learning frameworks.
+    
+    \item \textbf{Gradient Approximation Quality:} Whether zeroth-order optimization can navigate the high-dimensional ridges of the Ant-v4 environment as effectively as analytical gradients.
+\end{itemize}
+
+\subsubsection{Augmented Random Search (ARS)}
+
+ARS acts as the minimalist control, utilizing static linear policies. This baseline challenges the current trend toward architectural complexity by focusing on:
+
+\begin{itemize}
+    \item \textbf{Model Parsimony:} Determining if the ``representational bottleneck'' of a linear policy is a hindrance or a regularization benefit in standard locomotion tasks.
+    
+    \item \textbf{The ``Top-K'' Filtering Effect:} Measuring how the ``Augmented'' portion of ARS—filtering for the best-performing directions—impacts robustness across high-variance environments like the Walker2d.
+\end{itemize}
+
+\section{Experimental Configuration}
+This section details the computational infrastructure, agent architectures, and environment-specific configurations employed to ensure reproducibility and fair comparison.
+
+\subsection{Hardware and Software Infrastructure}
+
+Experiments were conducted on a MacBook Pro (M1 Pro, 16GB RAM). A critical component of this research involved the development of a unified experimental framework capable of bridging legacy optimization libraries with modern simulation standards:
+
+\begin{itemize}
+    \item \textbf{PPO:} Implemented via the CleanRL library, utilizing its ``single-file'' implementation philosophy. This ensures that the optimization logic is transparent and free from the ``hidden'' hyperparameters often found in modular RL frameworks.
+    
+    \item \textbf{ES \& ARS:} Derived from the foundational implementations by OpenAI and Berkeley, respectively. These were heavily refactored to support the Gymnasium (v0.26) API utilizing v4 environments. Furthermore, the communication backends were optimized for Apple Silicon, ensuring that the Ray workers efficiently utilize the M1 Pro's performance cores.
+    
+    \item \textbf{Version Control:} To support the ``Open Science'' goals of this study  and ensure the empirical reproducibility of this study, the complete experimental framework is hosted in a public repository. This centralized "monorepo" contains all source code, environment wrappers, and hyperparameter configurations discussed above. Crucially, the repository also serves as a digital archive for the raw training logs and behavioral evaluation videos.
+    
+ \noindent\textbf{Project Repository:} 
+\href{https://github.com/RhoudGh/ppo-es-ars-mujoco-comparison}{https://github.com/RhoudGh/ppo-es-ars-mujoco-comparison}
+
+\end{itemize}
+
+\section{Hardware Viability and Experimental Scope}
+
+This study validates the viability of Unified Memory Architectures (UMA) for high-dimensional Reinforcement Learning (RL) benchmarking. Rather than competing with discrete GPU clusters, we demonstrate that integrated workstations can effectively execute the entire simulation and optimization loop locally by eliminating the traditional PCIe ``host-to-device'' bottleneck.
+
+The experimental scope is intentionally restricted to the following MuJoCo environments:
+\begin{itemize}
+    \item \textbf{Hopper-v4}
+    \item \textbf{HalfCheetah-v4}
+    \item \textbf{Walker2d-v4}
+    \item \textbf{Ant-v4}
+\end{itemize}
+
+While \texttt{Humanoid-v4} is a common benchmark, its 37 degrees of freedom introduce a computational overhead that can cause simulation-bound bottlenecks on integrated silicon. In such cases, physics engine latency can overwhelm algorithmic processing time, thereby obscuring the performance of the optimization paradigms. 
+
+Additionally, the high instability of the Humanoid task typically necessitates environment-specific hyperparameter tuning, which would violate our strict \textit{``zero-tuning''} mandate. By focusing on these four morphologies, we ensure the performance bottleneck remains the algorithmic strategy rather than hardware-induced simulation lag.
+
+\subsection{Policy Architectures and Initialization}
+
+The study contrasts high-capacity non-linear models against minimalist linear controllers to isolate the impact of representational complexity:
+
+\begin{itemize}
+    \item \textbf{Deep Policies (PPO and ES):} Multi-Layer Perceptrons (MLPs) with two hidden layers of 64 units and Tanh activations. PPO utilizes Orthogonal Initialization (gain of $\sqrt{2}$) for hidden layers to preserve gradient variance, while the output layer is scaled to 0.01 to prevent early-training saturation in the action space.
+    
+    \item \textbf{Linear Policies (ARS):} A single weight matrix $M \in \mathbb{R}^{n \times m}$ mapping observations directly to joint torques. This serves as a control for whether task complexity necessitates deep hierarchical features or if the underlying dynamics can be solved through direct state-to-action mapping.
+\end{itemize}
+
+\subsection{Numerical Stability and Communication Efficiency}
+
+To ensure a fair comparison between the analytical gradients of PPO and the stochastic updates of ES/ARS, the following preprocessing pipeline was implemented:
+
+\begin{itemize}
+    \item \textbf{Online State Normalization:} All agents utilize a running mean-standard deviation filter. The normalized state $s'$ is computed as:
+\end{itemize}
+
+\begin{equation}
+s' = \frac{s - \mu}{\sigma + \epsilon}
+\end{equation}
+
+where $\mu$ and $\sigma$ are the running mean and standard deviation of all observed states, and $\epsilon = 10^{-8}$. Crucially, for ES and ARS, these filters are synchronized across all parallel workers at the end of each iteration to ensure the population evaluates noise directions against a consistent state distribution.
+
+\begin{itemize}
+    \item \textbf{Shared Noise Tables:} To circumvent the communication bottleneck of passing high-dimensional perturbation vectors across the system bus, ES and ARS utilize a Shared Noise Table of 250 million pre-sampled entries. Instead of transmitting full matrices, workers communicate small integer indices. This optimization is particularly effective on the Apple M1 Pro’s Unified Memory, as it allows multiple worker processes to point to the same memory addresses without redundant data duplication.
+\end{itemize}
+
+\section{Hyperparameter Framework}
+
+To maintain empirical integrity and isolate the generalizability of each optimization paradigm, hyperparameter configurations were held strictly constant across all experimental environments. These parameters were primarily derived from the foundational literature: Schulman et al. (2017), Salimans et al. (2017), and Mania et al. (2018) \citep{schulman2017ppo, salimans2017es, mania2018randomsearch}.
+
+By forgoing environment-specific fine-tuning, this study ensures that the results reflect the intrinsic robustness and ``plug-and-play'' capabilities of each algorithm. This approach reflects real-world constraints where exhaustive hyperparameter sweeps are often computationally or practically prohibitive.
+
+The experimental design utilizes a total training budget of 3,000,000 timesteps per environment, incorporating six independent random seeds to ensure statistical significance. This fixed-budget, fixed-parameter protocol allows for a high-fidelity assessment of how each ``optimization engine'' handles varying state-space dimensions and physical dynamics without the bias of targeted optimization. The specific parameters utilized to ensure reproducibility for each method are detailed in Table~\ref{tab:ppo_hyperparameters} (PPO), Table~\ref{tab:es_hyperparameters} (ES), and Table~\ref{tab:ars_hyperparameters} (ARS).
+
+\begin{table}[htbp]
+\centering
+\caption{PPO Hyperparameters (Schulman et al., 2017)}
+\label{tab:ppo_hyperparameters}
+\begin{tabular}{lll}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Functional Description} \\
+\midrule
+num\_steps      & 2,048              & Timesteps collected per rollout phase \\
+batch\_size     & 32                 & Samples used per gradient update \\
+update\_epochs  & 10                 & Training passes over the collected buffer \\
+clip\_coef      & 0.2                & Surrogate objective clipping range ($\epsilon$) \\
+ent\_coef       & 0.0                & Entropy coefficient (deterministic focus) \\
+learning\_rate  & $3 \times 10^{-4}$ & Base rate with linear annealing to zero \\
+policy\_arch    & 64$\times$64 MLP   & Multi-layer perceptron with Tanh activation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\caption{OpenAI-ES Hyperparameters (Salimans et al., 2017)}
+\label{tab:es_hyperparameters}
+\begin{tabular}{lll}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Functional Description} \\
+\midrule
+episodes\_per\_batch & 50            & Perturbed trajectories evaluated per iteration \\
+noise\_stdev         & 0.02          & Perturbation standard deviation ($\sigma$) \\
+return\_proc\_mode   & Centered Rank & Non-parametric reward transformation \\
+l2coeff              & 0.005         & Weight decay for parameter regularization \\
+optimizer            & Adam          & Adaptive moment estimation for updates \\
+step\_size           & 0.01          & Global learning rate parameter \\
+policy\_arch         & 64$\times$64 MLP & Multi-layer perceptron with Tanh activation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\caption{ARS V2 Hyperparameters (Mania et al., 2018)}
+\label{tab:ars_hyperparameters}
+\begin{tabular}{lll}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Functional Description} \\
+\midrule
+n\_directions & 25     & Total unique noise vectors (50 rollouts) \\
+deltas\_used  & 25     & Top-performing directions selected ($b = N$) \\
+delta\_std    & 0.1    & Perturbation magnitude for search \\
+step\_size    & 0.03   & Constant step size for parameter updates \\
+policy\_type  & Linear & Minimalist state-to-action weight matrix \\
+filter        & MeanStdFilter & Online observation normalization \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Workload Distribution and Update Synchronization}
+
+\subsection{The Synchronization Problem in Hybrid Benchmarking}
+A fundamental challenge in benchmarking gradient-based methods (such as PPO) against derivative-free methods (such as ES and ARS) is the alignment of their respective update cycles. In gradient-based paradigms, updates are typically triggered by a fixed number of environmental timesteps ($T_{rollout}$), whereas derivative-free methods operate on a per-episode or per-trajectory basis ($N_{pop}$). This creates an inherent "apples-to-oranges" comparison: if one algorithm processes significantly more data per update than another, any observed performance gain may simply be a function of data volume rather than algorithmic superiority.
+
+To mitigate this, we strategically correlate the PPO rollout length with the derivative-free population sizes to equalize the ``information density'' processed per policy update.
+
+\subsection{Managing Asymmetric Termination}
+To ensure an equitable baseline, OpenAI-ES and ARS were configured with a population size of $N=50$ trajectories per iteration. The alignment logic is as follows:
+\begin{itemize}
+    \item \textbf{Termination-Prone Environments:} In environments like \texttt{Hopper-v4}, \texttt{Walker2d-v4}, and \texttt{Ant-v4}, agents frequently fall during early training. Here, 50 trajectories typically aggregate to $\approx$2,000--4,000 environmental timesteps. This naturally aligns with PPO’s 2,048-step rollout, forcing all three algorithms to operate at a similar temporal ``rhythm.''
+    \item \textbf{Static-Horizon Environments:} \texttt{HalfCheetah-v4} presents a unique challenge as it does not terminate upon loss of balance. Consequently, 50 trajectories always equal 50 full-horizon episodes (approx. 50,000 timesteps). This creates a massive data disparity, where a single ES/ARS update consumes $\approx 24\times$ the data of a PPO update.
+\end{itemize}
+
+To resolve this disparity, all performance metrics in this study are strictly normalized against \textit{Total Environmental Timesteps} rather than update iterations. This ensures that sample efficiency is compared on an identical 1:1 scale, regardless of the underlying update frequency or the environment's termination logic.
+
+\subsection{The Constant Workload Principle}
+To evaluate scalability on the M1 Pro architecture without introducing confounding variables, the research adheres to a \textit{Constant Workload Principle}. In parallel computing, increasing the number of workers ($W$) often leads to a "hidden" increase in the batch size or total data processed per update, which artificially inflates sample efficiency.
+
+In this study, the workload is held constant while the distribution changes:
+\begin{enumerate}
+    \item \textbf{PPO Distribution:} The 2,048-step rollout is partitioned into $2,048/W$ steps. For our 4-worker configuration, each worker executes exactly 512 steps.
+    \item \textbf{ES/ARS Distribution:} The 50-episode population is split such that each worker concurrently executes $\approx 12$ episodes.
+\end{enumerate}
+
+By maintaining a fixed total data volume per update across all hardware configurations, we ensure that \textit{Sample Efficiency} (performance vs. timesteps) remains invariant. This isolation allows us to identify \textit{Temporal Efficiency} (wall-clock training time) as the primary dependent variable, providing a clear measure of how effectively the Unified Memory Architecture handles parallelized RL workloads.
+\section{Evaluation Metrics}
+
+To provide a multidimensional assessment of the optimization paradigms, the evaluation framework is structured around four primary pillars: Performance, Efficiency, Robustness, and Policy Behavior. These metrics capture the terminal capabilities of the agents, the computational costs of training, and the qualitative characteristics of the learned controllers.
+
+\subsection{Performance: Asymptotic vs. Cumulative Returns}
+
+Performance is quantified through the agent’s ability to maximize environmental returns within the allocated 3-million-step budget:
+
+\begin{itemize}
+    \item \textbf{Final Policy Score:} The average episodic return achieved during the final 10\% of the training horizon. This measures the asymptotic capability of the policy after convergence.
+    
+    \item \textbf{Cumulative Reward:} The integral of the reward curve over the total training duration (Area Under the Curve). This metric differentiates between algorithms that learn rapidly from the first interaction and those that require extensive "warm-up" periods before achieving significant gains.
+\end{itemize}
+
+\subsection{Efficiency: Sample and Temporal Analysis}
+
+Efficiency evaluates the relationship between environmental exposure and computational expenditure, measured at each algorithm's point of maximum observed return. Three complementary metrics are employed:
+
+\begin{itemize}
+
+    \item \textbf{Sample Complexity (Steps to Peak):}  
+    Defined as the number of environment timesteps required for an agent to reach its highest performance milestone within the fixed 3-million-step training horizon. This metric quantifies how much experiential data an algorithm must consume before its policy performance saturates.
+
+    \item \textbf{Temporal Efficiency (Wall-Clock Time to Peak):}  
+    The real-world elapsed time (in minutes) required for the agent to achieve its maximum reward. This captures computational overhead associated with optimization procedures, including gradient backpropagation, parameter updates, and synchronization costs.
+
+    \item \textbf{Hardware Throughput (Steps Per Second – SPS):}  
+    Measured as the number of environment steps processed per second. To assess parallel scalability, performance under single-worker (1-worker) and multi-worker (4-worker) configurations is compared using the Parallel Speedup metric $S$:
+
+\end{itemize}
+
+\begin{equation}
+S = \frac{T_{1}}{T_{4}}
+\label{eq:parallel_speedup}
+\end{equation}
+
+where $T_{1}$ and $T_{4}$ denote the total training duration under single-worker and four-worker configurations, respectively.
+
+This metric isolates the scalability characteristics of the Ray/Redis backend on the Apple M1 Pro architecture, independent of reward outcomes, thereby providing a hardware-centered measure of parallel efficiency.
+
+
+\subsection{Robustness: Stability and Convergence Reliability}
+
+Robustness is assessed by analyzing the variance across the six independent random seeds:
+
+\begin{itemize}
+    \item \textbf{Convergence Stability:} Visualized through shaded standard deviation regions around the mean reward. A narrow shaded region indicates an algorithm that is less sensitive to initial weight initialization and environmental stochasticity.
+    
+    \item \textbf{Success Rate:} The percentage of seeds that successfully converged to a stable gait versus those that suffered from catastrophic divergence (e.g., the agent falling and failing to recover, resulting in a plateaued low score).
+\end{itemize}
+
+\subsection{Policy Behavior: Qualitative Gait Analysis}
+
+While quantitative data provides the "what," qualitative analysis provides the "how." Visual assessments across the MuJoCo suite allow for the identification of learned strategies that numerical rewards may obscure:
+
+\begin{itemize}
+    \item \textbf{Gait Morphology:} Identifying "sub-optimal" behaviors, such as reward hacking (e.g., sliding or exploiting physics engine artifacts), versus "natural" rhythmic locomotion patterns.
+    
+    \item \textbf{Recovery Dynamics:} Observing how different agents recover from near-fall states, contrasting the high-frequency, jittery corrections typical of PPO with the potentially smoother, more physically grounded movements discovered by ES and ARS.
+\end{itemize}
+
+\section{Summary of Experimental Framework}
+
+This chapter has detailed the experimental framework developed to evaluate the practical and optimization trade-offs between PPO, ES, and ARS on the Apple M1 Pro architecture. By establishing rigorous controls across both software and hardware, the methodology provides a structured foundation for the comparative analysis presented in the following chapter. The key takeaways are summarized below:
+
+\begin{itemize}
+    \item \textbf{Hardware-Software Synergy:} The methodology transitions legacy optimization paradigms into a modern context by bridging them with the Gymnasium v4 API and utilizing a Ray/Redis backend optimized for the unified memory architecture of Apple Silicon.
+
+    \item \textbf{Update Cycle Synchronization:} A central pillar of the ``fair comparison'' is the alignment of update frequencies. By correlating PPO’s 2,048-step batch with the 50-episode populations of ES and ARS, the study ensures that all algorithms process a comparable density of environmental information per policy update during the initial learning phase.
+
+    \item \textbf{Constant Workload Principle:} The framework ensures that the mathematical complexity of updates remains invariant across 1-worker and 4-worker configurations. This isolates Temporal Efficiency (Steps Per Second, SPS) and Parallel Speedup ($S$) as the primary indicators of hardware scalability.
+
+    \item \textbf{Multidimensional Evaluation and Zero-Tuning:} Moving beyond reductive scalar metrics, the framework evaluates the divergence between Sample Efficiency and Wall-Clock Throughput. By enforcing a zero-tuning policy and employing six-seed statistical rigor, the study ensures that the final results reflect the intrinsic robustness of the optimization ``engines'' rather than environment-specific parameter artifacts.
+\end{itemize}
+
+\clearpage
+\null % creates an empty page
+\clearpage

@@ -1,0 +1,106 @@
+%
+% File: Results.tex
+% Author: Tengxiang Li
+%
+\chapter{Conclusion and Future Work}
+\label{chap:conclusion}
+\setlength{\parskip}{1em}
+%
+
+\section{Overview}
+
+This project has presented a high-resolution, multidimensional evaluation of three distinct policy optimization paradigms—\textbf{Proximal Policy Optimization (PPO)}, \textbf{Evolution Strategies (ES)}, and \textbf{Augmented Random Search (ARS)}—in the context of high-dimensional continuous control. While existing reinforcement learning benchmarks often rely heavily on terminal scalar returns and hyperparameter-specific success, this study has addressed key deficiencies through a hardware-aware evaluation framework. 
+
+By enforcing a strict ``zero-tuning'' protocol over a 3,000,000 timestep budget on the Apple M1 Pro architecture, the experiments isolated the intrinsic exploration, optimization, and stabilization mechanisms of each algorithm. Rather than treating continuous control as a purely mathematical challenge, this research bridges the gap between theoretical optimization and practical execution. It accomplishes this by assessing performance across four foundational pillars: Asymptotic Performance, Efficiency and Scalability, Statistical Robustness, and Qualitative Behavioral Integrity.
+
+\section{Summary of Findings}
+
+The empirical investigation across the four evaluation pillars yielded several key insights into the operational trade-offs of gradient-based and derivative-free methods:
+
+\begin{itemize}
+    \item \textbf{Asymptotic Performance Ceilings:} In serial (1-worker) baseline configurations, PPO established a clear performance ceiling, achieving the highest mean returns and cumulative Area Under the Curve (AUC) across all benchmarks. For instance, in \texttt{Walker2d-v4}, PPO reached an asymptotic score of $3588.88$, outperforming both derivative-free alternatives. This confirms that gradient-based updates construct a more precise optimization trajectory under serial execution constraints.
+    
+    \item \textbf{The Distributed Scaling Trade-off:} The transition to a 4-worker distributed setup exposed a critical performance-efficiency trade-off. While PPO benefited from distributed worker allocation in high-dimensional environments like \texttt{Ant-v4} ($+25\%$ score improvement), it suffered significant degradation in \texttt{Hopper-v4} ($-32\%$) and \texttt{HalfCheetah-v4} ($-52\%$). This volatility is directly linked to \textit{trajectory fragmentation}, where truncating the temporal rollout context into smaller sub-trajectories introduces bias into advantage estimation. 
+    
+    \item \textbf{Parallel Resilience of Evolutionary Methods:} In contrast to PPO's sensitivity to rollout context, ES demonstrated superior parallel resilience. In the 4-worker setup, ES surpassed PPO in \texttt{HalfCheetah-v4}, demonstrating that a broader search population acts as an implicit regularizer that successfully navigates complex optimization landscapes when provided with sufficient parallel workers.
+
+    \item \textbf{Temporal vs. Sample Efficiency:} A pronounced contrast emerged between sample complexity and temporal throughput. PPO demonstrated the lowest sample complexity, typically saturating its performance plateau within 1.0 to 1.5 million steps. However, derivative-free methods proved significantly faster in wall-clock time. Leveraging its simple perturbation mechanisms and lightweight computational footprint, parallel ARS completed the entire training budget in just 5.7 minutes, achieving a top throughput of 8,838 Steps Per Second (SPS) compared to PPO's 3,729 SPS.
+
+    \item \textbf{Hardware Scalability on Unified Memory:} The unified memory architecture of the Apple M1 Pro delivered distinct advantages for distributed training backends. PPO achieved the highest Parallel Speedup ($S = 2.63\times$ at $65.8\%$ efficiency) due to its dense computational optimization phase. Conversely, because ARS has such a minimal serial workload ($T_1 = 7.2$ minutes), its parallel scaling was constrained ($S = 1.27\times$) by Ray/Redis inter-process communication overhead.
+
+    \item \textbf{Statistical Robustness and Stable Failures:} While ARS mathematically recorded the lowest Coefficient of Variation (CV) in \texttt{Walker2d-v4} ($0.47\%$), qualitative inspection revealed this to be a ``stable failure'' state where the agent consistently converged to a sub-optimal, static survival baseline. Enforcing a strict zero-tuning protocol exposed the fragility of derivative-free methods without environment-specific hyperparameter optimization, as evidenced by ARS's CV exceeding $100\%$ in \texttt{HalfCheetah-v4}.
+
+    \item \textbf{The Efficiency-Integrity Gap:} The qualitative gait analysis exposed a major divergence between numerical success and physical viability. Both ES and ARS frequently exploited the environment physics to maximize reward via high-frequency joint oscillations or survival-based stasis (the ``Lazy Ant'' phenomenon). Conversely, PPO was the only algorithm that consistently learned stable, alternating bipedal gaits, confirming that gradient-based updates are critical for maintaining mechanical plausibility.
+\end{itemize}
+
+\section{Answering the Research Questions}
+
+This section provides direct, evidence-based answers to the five research questions proposed in Chapter~1.
+
+\subsection{Optimization Stability}
+
+\textbf{Research Question:} Under a strict zero-tuning protocol, which optimization paradigm demonstrates the highest stability and lowest inter-seed variance?
+
+\textbf{Answer:} PPO demonstrated the highest stability and lowest inter-seed variance in serial configurations. However, this stability is environment-dependent and can decrease under parallelization for gradient-based methods, while ES exhibits improved reliability as search breadth increases.
+
+\subsection{Efficiency Trade-offs}
+
+\textbf{Research Question:} How does wall-clock time correlate with sample efficiency on Apple Silicon?
+
+\textbf{Answer:} There is a negative correlation between wall-clock throughput and sample efficiency. ARS and ES are significantly faster in terms of wall-clock time (temporal efficiency) because they avoid expensive backpropagation, but they require substantially more data interactions (higher sample complexity) to reach peak performance compared to PPO.
+
+\subsection{Hardware Scalability}
+
+\textbf{Research Question:} How does transitioning from serial (1-worker) to parallel (4-worker) execution impact throughput and reproducibility?
+
+\textbf{Answer:} Parallelization impacts algorithms differently based on their computational density. PPO achieved the highest parallel speedup ($S = 2.63\times$) because the gain from distributing gradient calculations outweighed communication overhead. ARS showed the lowest speedup ($1.27\times$), becoming communication-bound due to inter-process overhead on the M1 Pro.
+
+\subsection{Algorithmic Simplicity and Reproducibility}
+
+\textbf{Research Question:} Can minimalist, linear baselines (ARS) reliably reproduce competitive control policies?
+
+\textbf{Answer:} Minimalist linear baselines (ARS) generally fail to reproduce competitive policies in high-dimensional 3D tasks such as \textit{Ant-v4} within a fixed computational budget. The representational density of deep neural networks (PPO and ES) is required to consistently solve complex morphologies beyond simple survival exploitation.
+
+\subsection{Behavioral Fidelity}
+
+\textbf{Research Question:} Does a high numerical reward score reliably correspond to naturalistic locomotion?
+
+\textbf{Answer:} No. High reward scores often obscured sub-optimal exploitation behaviors, such as PPO sliding on its back in \textit{HalfCheetah} or ES inducing high-frequency jitter in \textit{Walker2d}. Although PPO demonstrated the highest overall behavioral integrity, all algorithms were susceptible to forms of reward hacking.
+
+\section{Contributions of This Research}
+
+This research provides both theoretical and practical contributions to the field of robotic locomotion and optimization.
+
+\subsection{Theoretical Contributions}
+
+\begin{itemize}
+    \item \textbf{Gradient vs.\ Gradient-Free Insights:} The study clarified the trade-off between the optimization precision of gradient-based methods and the search breadth of population-based approaches, identifying conditions under which ES can outperform PPO.
+    \item \textbf{Parallelization Effects:} The work quantified the impact of distributed workloads on policy stability, demonstrating that parallelization can increase variance for gradient-based methods while stabilizing evolutionary search.
+    \item \textbf{Integrity Gap Identification:} The research formalized the concept of the ``Integrity Gap,'' highlighting the disconnect between scalar reward metrics and physical gait viability in MuJoCo environments.
+\end{itemize}
+
+\subsection{Practical Contributions}
+
+\begin{itemize}
+    \item \textbf{Hardware-Aware Benchmarking Framework:} A reproducible experimental infrastructure was developed specifically for ARM-based Apple Silicon, bridging Gymnasium (v4) with multiple optimization backends via Ray/Redis.
+    \item \textbf{Constant Workload Protocol:} A fair comparison protocol was implemented that equalizes information density per update, providing a reference framework for future MuJoCo benchmarking studies.
+    \item \textbf{Zero-Tuning Baseline Reference:} By enforcing a zero-tuning policy, the study established a benchmark for the out-of-the-box robustness of PPO, ES, and ARS across four distinct morphologies.
+    \item \textbf{Open-Source Benchmarking Infrastructure:} 
+The study contributed a modernized, public repository featuring refactored implementations of ARS and ES compatible with Gymnasium-v4. Optimized for Apple Silicon, this ``monorepo'' includes a digital archive of training logs and behavioral evaluation videos, providing a reproducible foundation for future comparative research on ARM-based architectures.
+\end{itemize}
+
+\section{Future Work}
+
+Based on the limitations and findings of this study, several directions for future research are proposed:
+
+\begin{itemize}
+    \item \textbf{Extending Morphological Complexity:} Evaluating these algorithms on more complex 3D MuJoCo tasks, such as \textit{Humanoid-v4}, to assess whether the throughput advantage of ARS or the scalability of ES eventually overcomes the sample efficiency of PPO in higher-dimensional spaces.
+    \item \textbf{Algorithmic Breadth:} Including off-policy algorithms such as Soft Actor-Critic (SAC) or Twin Delayed DDPG (TD3) to compare their sample efficiency against the on-policy stability of PPO and the speed of ES.
+    \item \textbf{Hyperparameter Sensitivity Analysis:} Investigating hardware-aware tuning strategies (e.g., larger batch sizes for M1 Pro) to determine whether the parallel volatility observed in PPO can be mitigated.
+    \item \textbf{GPU-Accelerated Simulation:} Evaluating these paradigms within GPU-accelerated frameworks such as Isaac Gym to determine whether the high-throughput nature of derivative-free methods becomes more dominant when the simulation bottleneck is removed.
+    \item \textbf{Real-World Transfer (Sim-to-Real):} Investigating reward shaping and domain randomization techniques to address behavioral exploitation (e.g., jittering or sliding), ensuring policies can be safely deployed on physical hardware without causing mechanical damage.
+\end{itemize}
+
+\clearpage
+\null % creates an empty page
+\clearpage

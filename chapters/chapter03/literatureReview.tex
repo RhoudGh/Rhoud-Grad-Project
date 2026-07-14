@@ -1,0 +1,139 @@
+%
+% File: conclusion.tex
+% Author: Tengxiang Li
+%
+\chapter{Literature Review}
+\label{chap:literatureReview}
+\setlength{\parskip}{1em}
+%
+\section{Overview}
+This chapter provides a comprehensive review of the state-of-the-art algorithms in continuous control, focusing on Proximal Policy Optimization (PPO), OpenAI Evolution Strategies (OpenAI-ES), and Augmented Random Search (ARS). The selection of these algorithms was guided by their distinct methodological approaches, benchmarking standards, and computational footprints, which together facilitate a multidimensional evaluation of optimization paradigms for physical control. The chapter also identifies critical gaps in the existing literature, particularly regarding reproducibility, hardware scalability, and the disconnect between numerical rewards and behavioral integrity. By synthesizing insights from these foundational works, this review sets the stage for the experimental comparisons presented in subsequent chapters.
+
+\section{State-of-the-Art Paper Selection}
+
+To conduct a rigorous comparative analysis of continuous control optimization, it is necessary to distill the vast landscape of Reinforcement Learning (RL) and Black-Box Optimization literature into representative paradigms. The selection of state-of-the-art papers for this study was not exhaustive but strategic, aiming to identify distinct ``optimization engines" that fundamentally differ in how they navigate high-dimensional search spaces.
+
+This research focuses on three foundational algorithms: Proximal Policy Optimization (PPO) \citep{schulman2017ppo}, Evolution Strategies (ES) \citep{salimans2017es}, and Augmented Random Search (ARS) \citep{mania2018randomsearch}. These methods were chosen because they represent the current standard for gradient-based Deep RL, the scalable alternative of population-based evolution, and the minimalist baseline of random search, respectively.
+
+\subsection{Criteria of Selection}
+The algorithms were selected based on three primary criteria designed to isolate the impact of computational complexity, representational density, and gradient reliance on performance:
+
+\begin{enumerate}
+    \item \textbf{Methodological Diversity:} The study requires a contrast between agents that optimize via analytical gradients and those that utilize derivative-free perturbations. PPO was selected to represent the gradient-based Deep Reinforcement Learning (DRL) paradigm, leveraging backpropagation and function approximation. Conversely, ES and ARS were selected to represent Derivative-Free Optimization (DFO), navigating the parameter space without direct knowledge of the reward function's curvature.
+    
+    \item \textbf{Benchmarking Standards:} PPO serves as the industry standard for sample efficiency in locomotion tasks, offering a baseline for the maximum reward achievable per environment interaction. ARS was selected to challenge the assumption that complex tasks require complex models; by utilizing linear policies, it serves as a control variable to test whether the ``representational density" of deep neural networks is actually necessary for MuJoCo benchmarks.
+    
+    \item \textbf{Parallelization and Computational Footprint:} A critical dimension of this research is hardware scalability. The algorithms were chosen for their distinct computational requirements: the heavyweight, serial-dependent backpropagation of PPO versus the lightweight, naturally parallelizable forward passes of ES and ARS. This diversity allows for a direct evaluation of throughput (Steps Per Second) and parallel speedup on unified memory architectures.
+\end{enumerate}
+
+\subsection{Objectives of the Selection Process}
+The objective of selecting these specific baselines is to facilitate a multidimensional evaluation that moves beyond simple reward comparison. By synthesizing these three distinct approaches, the selection process aims to:
+
+\begin{itemize}
+    \item \textbf{Isolate Optimization Stability:} By subjecting fundamentally different mathematical formulations to a strict ``zero-tuning" protocol, the study aims to identify which paradigm possesses the highest intrinsic robustness to initialization and environmental stochasticity.
+    
+    \item \textbf{Evaluate the ``Efficiency-Integrity" Trade-off:} The selection allows for a direct comparison between the Sample Complexity (data efficiency) of gradient methods and the Temporal Efficiency (wall-clock speed) of black-box methods.
+    
+    \item \textbf{Assess Hardware Scalability:} The inclusion of population-based methods (ES, ARS) alongside serial-focused methods (PPO) is intended to quantify the benefits of distributed computing on modern ARM-based silicon, specifically examining how communication overhead impacts scaling.
+\end{itemize}
+
+\section{Proximal Policy Optimization (PPO)}
+
+Proximal Policy Optimization (PPO) \citep{schulman2017ppo} was proposed as a family of policy gradient methods designed to strike a balance between ease of implementation, sample efficiency, and ease of tuning. The study identified that standard ``vanilla'' policy gradient methods, such as REINFORCE, frequently suffer from poor data efficiency and high variance. Furthermore, while Trust Region Policy Optimization (TRPO) \citep{schulman2015trpo} offered more reliable performance by constraining policy updates, it was deemed too complex for general use and incompatible with architectures that utilize parameter sharing. PPO aims to replicate the reliable performance of trust-region methods using only first-order optimization.
+
+The core contribution of PPO is the introduction of a ``surrogate'' objective function that enables multiple epochs of minibatch updates on the same data sample without causing ``destructive'' policy changes. To achieve this, the authors introduced a clipped probability ratio $r_t(\theta) = \pi_\theta(a_t | s_t) / \pi_{\theta_{old}}(a_t | s_t)$, which measures the difference between the current and old policy. The objective function is formulated as follows:
+
+\begin{equation}
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t [ \min(r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1 - \epsilon, 1 + \epsilon) \hat{A}_t) ].
+\end{equation}
+
+This formulation takes the minimum of the unclipped and clipped objectives to create a ``pessimistic'' lower bound on performance. By clipping the ratio within the interval $[1-\epsilon, 1+\epsilon]$, the algorithm effectively prevents the policy from moving too far from its predecessor, thus maintaining stability even in the high-dimensional continuous search spaces discussed in Section~2.2. To estimate the advantage $\hat{A}_t$, the study employs a truncated version of Generalized Advantage Estimation (GAE) over a fixed horizon of $T$ timesteps:
+
+\begin{equation}
+\hat{A}_t = \delta_t + (\gamma\lambda)\delta_{t+1} + \dots + (\gamma\lambda)^{T-t-1}\delta_{T-1},
+\end{equation}
+
+where $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$. This approach allows the agent to learn from partial trajectories, making it highly suitable for long-horizon locomotion tasks. PPO was evaluated on several MuJoCo environments, including the Hopper, HalfCheetah, and Walker2d. The results demonstrated that PPO outperforms other online policy gradient methods in sample complexity and final performance, establishing it as a definitive baseline for robotic locomotion research.
+
+\section{OpenAI Evolution Strategies (OpenAI-ES)}
+
+Building on the Derivative-Free Optimization (DFO) \citep{kolda2003directsearch} and Natural Evolution Strategies (NES) \citep{wierstra2014nes} principles introduced in Section~2.4.3, \citep{salimans2017es} proposed a modern, scalable approach that re-contextualizes Evolution Strategies as a viable alternative to traditional Reinforcement Learning (RL). The study demonstrates that black-box optimization can achieve competitive results on complex continuous control tasks, such as those in the MuJoCo suite, provided it is scaled appropriately through distributed computing. As a specific subclass of NES, the OpenAI-ES framework utilizes an isotropic multivariate Gaussian distribution with a fixed covariance matrix to navigate the parameter space. By optimizing the mean of this distribution, the algorithm effectively performs stochastic gradient ascent on a ``Gaussian-blurred'' version of the original  $F$. This smoothing renders the objective function differentiable even when the underlying environment dynamics are non-smooth or discontinuous. The resulting gradient estimator is defined as:
+
+\begin{equation}
+\nabla_{\psi} \mathbb{E}_{\theta \sim N(\psi, \sigma^2 I)} F(\theta) = \frac{1}{\sigma} \mathbb{E}_{\epsilon \sim N(0, I)} [F(\psi + \sigma\epsilon)\epsilon].
+\end{equation}
+
+A primary contribution of \citep{salimans2017es} is the identification of the unique scalability of ES using Parallel Workers in distributed environments. Unlike traditional RL methods that require the communication of high-dimensional gradients or value function updates, OpenAI-ES utilizes a novel communication strategy based on shared random seeds. By synchronizing seeds across workers, each worker can reconstruct the high-dimensional perturbations used by others, requiring the transmission of only a single scalar: the episode return (fitness). This minimal bandwidth requirement facilitates near-linear speedups; for instance, the authors solved the 3D Humanoid walking task in 10 minutes using 1,440 workers, a task that typically requires an entire day for standard RL algorithms.
+
+The performance of OpenAI-ES was evaluated against a highly tuned implementation of Trust Region Policy Optimization (TRPO) on MuJoCo benchmarks. The findings indicate that while ES is generally less sample-efficient than TRPO on harder environments like the Hopper and Walker2d—requiring approximately 3x to 10x more timesteps to reach 100\% of TRPO's progress—it can achieve up to 3x better sample complexity on simpler tasks like the Swimmer. Crucially, the authors highlight that ES possesses structural advantages over MDP-based RL: it is naturally invariant to action frequency and is highly tolerant of delayed rewards without the need for temporal discounting. By incorporating rank-based fitness shaping to mitigate the impact of outliers, \citep{salimans2017es} position OpenAI-ES not merely as a heuristic search, but as a principled, gradient-based optimization method tailored for high-dimensional, distributed computing.
+
+\section{Augmented Random Search (ARS)}
+
+Building upon the Derivative-Free Optimization (DFO) \citep{kolda2003directsearch} and random search principles established in Section~2.4.3, Augmented Random Search (ARS) was proposed by \citep{mania2018randomsearch} as a minimalist, black-box optimization algorithm for continuous control. The study was motivated by the observation that while recent literature has trended toward increasingly complex Deep Reinforcement Learning (DRL) methods, such as the PPO and OpenAI-ES algorithms discussed previously, these methods often struggle with reproducibility, hyperparameter sensitivity, and high computational requirements. ARS demonstrates that a simplified version of random search, when enhanced with basic structural heuristics, can match or exceed the sample efficiency of state-of-the-art MDP-based algorithms while utilizing only static linear policies. This suggests that the high-dimensional locomotion benchmarks in MuJoCo may not require the representational power of deep neural networks to achieve stable, high-performing gaits.
+
+As a specific evolution of the basic random search (BRS) framework, ARS maintains a policy parameterized by a matrix and operates by perturbing these parameters in the search space rather than sampling actions in the action space. This approach re-contextualizes RL as a derivative-free optimization problem with noisy function evaluations. To address the instabilities inherent in this process, the authors propose four distinct versions of the algorithm—ARS V1, V1-t, V2, and V2-t—which incrementally introduce three critical augmentations.
+
+The first version, ARS V1, introduces scaling of the update steps by the standard deviation of the rewards $\sigma_R$ collected during an iteration. This prevents harmful variations in update magnitude as the agent discovers higher-reward regions. To further improve performance, ARS V1-t (the ``t'' denoting top-performing directions) implements a selection mechanism that discards the perturbation directions yielding the least improvement, focusing the update only on the $b$ best-performing directions. Building on these, ARS V2 incorporates online state normalization—rescaling the environment's states by estimates of their mean and standard deviation—to ensure all state components exert equal influence on the control signal regardless of their magnitude. Finally, ARS V2-t combines all three augmentations: reward scaling, state normalization, and top-direction selection.
+
+The formal update rule for these augmented versions is defined as:
+
+\begin{equation}
+M_{j+1} = M_j + \frac{\alpha}{b\sigma_R} \sum_{k=1}^b [r(\pi_{j,(k),+}) - r(\pi_{j,(k),-})] \delta_{(k)}.
+\end{equation}
+
+In this formulation, $\alpha$ represents the step-size, $b$ is the number of top-performing directions used, and $\sigma_R$ is the standard deviation of the $2b$ rewards used in the update step. This finite difference approximation provides a gradient estimate for a ``Gaussian-blurred'' version of the objective function, conceptually similar to OpenAI-ES but simplified by the omission of Adam optimization, rank-based fitness transformations, and deep architectures.
+
+The design philosophy of ARS deliberately avoids the use of critics, value functions, or backpropagation, relying instead on the inherent robustness of parameter-space exploration. Empirical evaluations on MuJoCo benchmarks demonstrate that ARS is capable of discovering diverse and effective locomotion gaits. Notably, on the Humanoid-v1 task, the authors found that while ARS V1 was insufficient, the state-normalized ARS V2 found linear policies achieving average rewards exceeding 11{,}500, surpassing many reported results for neural-network-based methods.
+
+The study further reveals that ARS is significantly more computationally efficient than its predecessors, often requiring 15 times less computation than competing DRL algorithms to solve standard benchmarks. However, a rigorous evaluation over hundreds of random seeds also highlighted the prevalence of local optima in these environments. By demonstrating that robust control can be achieved through stabilized random search, \citep{kolda2003directsearch} establish ARS as an essential baseline for modern RL research, advocating for a renewed focus on simplicity and rigorous evaluation in the development of optimization algorithms for artificial intelligence.
+%%
+\section{Hardware Acceleration and Modern Baselines}
+
+The contemporary reinforcement learning landscape has shifted toward massive, hardware-accelerated simulation via frameworks such as NVIDIA Isaac Lab \citep{nvidia2025isaac} and PixelBrax \citep{mcinroe2025pixelbrax}. While modern off-policy methods, including Soft Actor-Critic (SAC) \citep{haarnoja2018sac} and Twin Delayed DDPG (TD3) \citep{fujimoto2018td3}, offer high sample efficiency within these environments, they introduce significant architectural complexities and hyperparameter sensitivities. These characteristics often conflict with the requirements of a strict ``zero-tuning'' comparative study. 
+
+By focusing on PPO, ES, and ARS, this research isolates the specific impact of the optimization paradigm—ranging from gradient-based to black-box search—independent of the value-function approximation challenges inherent in off-policy learning. Furthermore, recent meta-analyses highlight that MuJoCo remains a gold standard for high-fidelity contact dynamics in robotics research \citep{kaup2024review}. This study complements existing high-throughput GPU research by evaluating foundational paradigms on consumer-grade Unified Memory Architectures (UMA). By doing so, it highlights the viability of integrated silicon, specifically the Apple M1 Pro, for stable and robust local research without the necessity for high-performance computing (HPC) clusters.
+%%
+\section{Research Gap}
+\label{sec:research_gap}
+
+Despite the extensive literature on continuous control, significant gaps remain regarding the practical deployment, reproducibility, and behavioral integrity of these algorithms on modern hardware. This project addresses four specific limitations in the existing body of work.
+
+\begin{enumerate}
+    \item \textbf{The Transparency Gap in Performance Metrics:} Standard evaluations in foundational literature often condense training runs into a single scalar metric, typically the average of the final 100 episodic returns. This ``scalar-centric" approach obscures critical data regarding algorithmic consistency. High average scores often mask "lucky seeds" or high failure rates where a subset of agents fails to converge entirely. There is a lack of comparative studies that rigorously visualize inter-seed variance and "convergence stability" (the shaded standard deviation regions) to distinguish between reliable optimization and stochastic success.
+    
+    \item \textbf{The Hardware and Scalability Gap:} The majority of foundational benchmarks were established on large-scale x86 server clusters or dedicated NVIDIA GPUs. There is a distinct lack of empirical data regarding how these optimization paradigms perform on modern, consumer-grade ARM-based architectures, such as Apple Silicon (M1 Pro). Specifically, the literature has under-explored the efficacy of "shared noise tables" and unified memory architectures in mitigating the communication bottlenecks often associated with distributed Evolution Strategies. Furthermore, standard metrics rarely distinguish between Sample Complexity (mathematical efficiency) and Temporal Throughput (wall-clock time), a distinction that is critical for researchers operating with limited local compute resources.
+    
+    \item \textbf{The "Zero-Tuning" Reproducibility Crisis:} Reinforcement learning research faces a well-documented ``reproducibility crisis," where reported results heavily depend on environment-specific hyperparameter tuning. Few comparative studies enforce a strict ``zero-tuning" protocol, where hyperparameters are held constant across diverse physical morphologies (e.g., from the 2D Hopper to the 3D Ant) to test intrinsic algorithmic robustness. This project addresses this gap by freezing hyperparameters to their literature-standard values, thereby isolating the algorithm's adaptability from the researcher's tuning effort.
+    
+    \item \textbf{The Efficiency-Integrity Gap (Behavioral Fidelity):} Perhaps the most critical gap is the disconnect between numerical reward scores and physical plausibility. Existing literature typically assumes that a higher reward equates to better control. However, agents frequently converge on ``sub-optimal exploitation" strategies—such as jittering, sliding, or exploiting ``survival bonuses" to maximize rewards without achieving functional locomotion. There is a lack of systematic, qualitative ``gait analysis" in standard benchmarking that categorizes learned behaviors into ``Naturalistic Locomotion" versus ``Reward Hacking". This study seeks to fill this gap by supplementing quantitative data with visual assessments to determine if simpler methods (like ARS) are more or less prone to these behavioral artifacts than deep RL methods (like PPO).
+\end{enumerate}
+
+
+\section{Summary}
+
+This chapter has provided a critical review of the landscape of continuous control optimization, moving from the rationale behind algorithm selection to the identification of unresolved challenges in the field.
+
+Key takeaways include:
+
+\begin{itemize}
+    \item \textbf{Strategic Selection:} PPO, ES, and ARS were selected to provide a necessary contrast between gradient-based precision and derivative-free scalability, representing the diverse mechanisms available for navigating high-dimensional search spaces.
+    
+    \item \textbf{Optimization Paradigms:} 
+    \begin{itemize}
+        \item \textbf{Gradient-Based (PPO):} Relies on surrogate objectives and clipping to maintain stability and sample efficiency, serving as the industry standard for locomotion tasks.
+        \item \textbf{Derivative-Free (ES \& ARS):} Utilizes population-based statistics and random search to bypass non-differentiable dynamics, offering potential advantages in wall-clock throughput and parallel scalability.
+    \end{itemize}
+
+    \item \textbf{Critical Research Gaps:} The review highlighted significant deficiencies in existing benchmarks that this project aims to address:
+    \begin{itemize}
+        \item \textbf{Hardware Awareness:} The lack of empirical data on how these paradigms scale on modern unified memory architectures (Apple Silicon) compared to traditional clusters.
+        \item \textbf{Reproducibility:} The necessity of a ``zero-tuning" protocol to assess intrinsic robustness rather than hyperparameter-specific success.
+        \item \textbf{Efficiency vs. Integrity:} The ``Efficiency-Integrity Gap," where scalar metrics fail to distinguish between functional locomotion and sub-optimal exploitation (reward hacking).
+    \end{itemize}
+\end{itemize}
+
+By bridging the theoretical understanding of these algorithms with these identified gaps, this chapter justifies the need for the multidimensional evaluation framework proposed in the Methodology.
+
+\clearpage
+\null % creates an empty page
+\clearpage

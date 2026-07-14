@@ -1,0 +1,119 @@
+%
+% File: introduction.tex
+% Author: Tengxiang Li
+%
+\chapter{Introduction}
+\label{chap:intro}
+\setlength{\parskip}{1em}
+%
+% Citation like this \cite{feynman1965feynman}. \par
+% %
+% \noindent Or you can multi-cite like this \cite{feynman1965feynman,dirac1929quantum}. \par
+%
+
+\section{Overview}
+
+The field of Artificial Intelligence has seen a transformative shift toward autonomous systems capable of mastering complex physical tasks; while early successes focused on discrete environments, recent advancements—driven by deep reinforcement learning—have increasingly addressed high-dimensional continuous settings \citep{lillicrap2015ddpg}. Central to this progress is continuous control—the ability of an agent to navigate real-valued state and action spaces to produce smooth, precise movements \citep{seif2016autonomous}. Modern engineering systems, spanning industrial robotics, electric vehicles, aerospace navigation, and biomedical devices, depend on these control mechanisms to ensure stability, safety, and efficiency \citep{pokharel2024comprehensive}. The significance of this challenge is underscored by the global industrial automation and control market, which was valued at over USD 180 billion in 2024 \citep{pokharel2024comprehensive}.
+
+As robotic applications enter dynamic, unpredictable environments, the limitations of traditional pre-defined models have prompted a shift toward adaptive machine learning approaches \citep{shahid2022manipulation}. This project investigates the efficacy of three distinct policy optimization methods: Proximal Policy Optimization (PPO) \citep{schulman2017ppo}, Evolution Strategies (ES) \citep{salimans2017es}, and Augmented Random Search (ARS) \citep{mania2018randomsearch}. By evaluating these within the Multi-Joint dynamics with Contact (MuJoCo) physics engine \citep{todorov2012mujoco}, this study compares gradient-based Deep Reinforcement Learning (DRL) against derivative-free black-box optimization.
+
+Beyond standard benchmarking, this research evaluates these paradigms under a strict ``zero-tuning" protocol on consumer-grade Unified Memory Architecture (Apple M1 Pro). By enforcing these resource and algorithmic constraints, the study identifies critical trade-offs between sample efficiency, stability, and computational robustness. Ultimately, this investigation seeks to formalize the \textbf{``Efficiency-Integrity Gap"}—exploring the tension between mathematical reward maximization and the physical viability of learned locomotion in high-dimensional continuous environments.
+
+\section{Background}
+ 
+Continuous control is characterized by infinite search spaces and high dimensionality, often involving numerous degrees of freedom that complicate the exploration-exploitation balance \citep{wang2017continuous}. To evaluate potential solutions to these challenges, the research community has converged on standardized benchmarks, with the MuJoCo physics engine serving as the definitive platform for simulating articulated systems \citep{towers2024gymnasium}.
+
+The optimization of policies for these environments generally falls into two categories. First, Deep Reinforcement Learning (DRL) utilizes neural networks as function approximators and relies on gradient information to refine policy parameters \citep{sutton2018rl}. Methods such as PPO have gained prominence for their ability to stabilize updates through clipping mechanisms, preventing the performance collapse often seen in high-dimensional settings \citep{schulman2017ppo}. 
+
+Conversely, Black-Box Optimization, specifically Derivative-Free Optimization (DFO), treats the environment as opaque. These methods, including ES and ARS, do not require backpropagation or differentiable reward functions; instead, they navigate the search space through stochastic perturbations and population-based selection \citep{eiben2015ec,salimans2017es}.
+
+\section{Problem Statement}
+
+Selecting an optimal paradigm for high-dimensional physical control remains a challenge, as traditional benchmarks often prioritize peak performance achieved through exhaustive hyperparameter tuning and massive GPU clusters \citep{strubell2019energy}. This creates a barrier for research conducted on integrated, energy-efficient workstations and obscures how algorithms behave under strict resource constraints. Consequently, this study does not seek to identify a universally superior algorithm; rather, it evaluates how different optimization paradigms perform under the pressures of a \textbf{“zero-tuning” protocol} and a limited \textbf{3-million timestep budget} on a modern \textbf{Unified Memory Architecture (Apple M1 Pro)}.
+
+There is a critical research gap in understanding algorithmic robustness when human-in-the-loop tuning is removed. While gradient-based methods like PPO are widely utilized, their performance often exhibits significant sensitivity to hyperparameters and implementation details, leading to high variance across training seeds \citep{engstrom2020ppo, andrychowicz2021what}. This instability is particularly evident in contact-rich environments where reward signals are non-smooth \citep{shahid2022manipulation}. Conversely, derivative-free optimization (DFO) methods like ES and ARS offer highly parallelizable alternatives \citep{salimans2017es, pagliuca2020efficacy}, yet their efficacy on integrated silicon (UMA) remains largely untested, necessitating a re-evaluation of accessible, CPU-compatible hardware for complex control \citep{such2017deep}.
+
+Finally, this research addresses the \textbf{“Efficiency-Integrity Gap”}: the tension between mathematical reward maximization and physical realism. High reward scores often mask sub-optimal behaviors—such as “reward hacking” or the exploitation of physics engine artifacts \citep{todorov2012mujoco}—rather than the discovery of functional, rhythmic gaits. By assessing these methods across multidimensional pillars—including convergence consistency, parallel scalability, and qualitative integrity—this study establishes a practical reference for the behavioral and computational trade-offs inherent in local, high-fidelity reinforcement learning.
+\section{Motivation}
+
+The motivation for this study is threefold: reproducibility, computational efficiency, and behavioral integrity. The ``reproducibility crisis'' in RL highlights a need for algorithms that are robust to initialization and require minimal environment-specific tuning. \footnote{To support these reproducibility goals, the complete codebase, refactored algorithms, and behavioral video data are available at: \url{https://github.com/RhoudGh/ppo-es-ars-mujoco-comparison}} By adopting a ``zero-tuning'' policy, this research aims to identify which optimization engine possesses the highest intrinsic robustness.
+
+Additionally, as the demand for edge-computing and on-device learning grows, understanding the ``Temporal Efficiency'' (wall-clock time) of these methods on consumer-grade hardware like the M1 Pro is essential. By comparing the high-capacity MLPs used in PPO and ES against the parsimonious linear models of ARS, this research seeks to determine the minimum architectural complexity required to solve the MuJoCo benchmark suite effectively.
+
+Finally, this research is motivated by the need to address the ``Efficiency-Integrity Gap" and move beyond reductive scalar metrics. By supplementing quantitative data with visual assessments, the study categorizes learned behaviors into “Naturalistic Locomotion” (rhythmic, stable gaits) and “Sub-optimal Exploitation.” This distinction is critical for transitioning AI from simulation to physical robotics, where mathematically optimal but physically jittery or exploitative behaviors can lead to hardware damage.
+\section{Research Questions}
+
+To address the identified problem, this research seeks to answer the following questions:
+
+\begin{enumerate}
+    \item \textbf{Optimization Robustness:} Under the strict resource constraints of a zero-tuning protocol, which optimization paradigm—gradient-based (PPO), evolutionary (ES), or simple random search (ARS)—demonstrates the highest intrinsic robustness and lowest inter-seed variance?
+    \item \textbf{Efficiency Trade-offs:} How does wall-clock time (Temporal Efficiency) correlate with sample efficiency on Apple Silicon? Does the rapid throughput of derivative-free methods compensate for their higher data requirements?
+
+    \item \textbf{Hardware Scalability:} How does transitioning from serial (1-worker) to parallel (4-worker) execution impact the training throughput and reproducibility of population-based methods compared to single-thread gradient baselines?
+
+    \item \textbf{Algorithmic Simplicity \& Reproducibility:} Can minimalist, linear baselines (ARS) reliably reproduce competitive control policies without complex hyperparameters, or is the ``representational density'' of Deep RL (PPO) required for consistent success?
+
+    \item \textbf{The Efficiency-Integrity Gap:} Does a high numerical reward score reliably correspond to naturalistic locomotion (as observed in video analysis), or do certain optimization engines favor sub-optimal exploitation (jittering/sliding) that scalar metrics fail to capture?
+\end{enumerate}
+
+\section{Research Aim and Objectives}
+
+The primary aim of this research is to conduct a systematic comparative investigation into the trade-offs between gradient-based reinforcement learning and derivative-free optimization paradigms, evaluating their capacity to solve high-dimensional continuous control problems within a unified, hardware-aware framework.
+
+To achieve this aim, the following objectives have been established:
+
+\begin{enumerate}
+    \item \textbf{Algorithmic Synthesis:} To select and synthesize representative optimization ``engines'' from existing literature to serve as the conceptual basis for a cross-paradigm comparison of continuous control strategies.
+    
+    \item \textbf{Infrastructure Integration:} To architect a reproducible experimental environment on Apple Silicon, bridging distinct optimization backends into a unified interface for standardized simulation.
+    
+    \item \textbf{Performance Profiling:} To execute a fixed-budget benchmarking protocol across diverse physical morphologies to distinguish between final agent capability and cumulative learning stability.
+    
+    \item \textbf{Efficiency and Scalability Analysis:} To evaluate the relationship between sample complexity and temporal throughput, quantifying the impact of distributed computation on unified memory architectures.
+    
+    \item \textbf{Multidimensional Evaluation:} To assess the reliability of each paradigm through statistical robustness and qualitative gait analysis, explicitly formalizing the ``Efficiency-Integrity Gap" to differentiate between functional locomotion and sub-optimal exploitation.
+\end{enumerate}
+
+\section{Research Methodology}
+
+This research adopts an empirical, comparative approach centered on the Apple M1 Pro architecture (16GB RAM). To bridge the gap between legacy optimization libraries and modern simulation standards, the study utilizes a unified experimental infrastructure that integrates CleanRL and refactored versions of OpenAI-ES and ARS within the Gymnasium (v4) API, utilizing a Ray/Redis communication backend to efficiently distribute workloads across the M1 Pro's performance cores.
+
+A central pillar of the methodology is the \textbf{Constant Workload Principle}, which ensures a fair comparison between gradient-based and derivative-free methods. By aligning PPO’s 2,048-step rollout with the 50-episode populations of ES and ARS, the study equalizes the information density processed per policy update during the critical early-training phase.
+
+Performance is evaluated through a four-pillar \textbf{multidimensional framework} (Section 4.3) comprising:
+\begin{enumerate}
+    \item \textbf{Asymptotic and Cumulative Performance:} Distinguishing between terminal scores and learning velocity.
+    \item \textbf{Sample and Temporal Efficiency:} Analyzing the trade-off between environmental interactions and wall-clock throughput (Steps Per Second).
+    \item \textbf{Statistical Robustness:} Quantifying reliability via convergence variance across six independent random seeds.
+    \item \textbf{Qualitative Gait Analysis:} Visual assessment formalizing the ``Efficiency-Integrity Gap" by categorizing policy behaviors into “Naturalistic Locomotion” (rhythmic, forward-moving) versus “Sub-optimal Exploitation” (sliding, jittering, or physics-engine artifacts).
+\end{enumerate}
+
+Finally, the study enforces a ``zero-tuning'' protocol, utilizing hyperparameters derived directly from foundational literature. This ensures that the results reflect the intrinsic robustness and ``plug-and-play'' capabilities of each optimization engine rather than the effects of environment-specific fine-tuning.
+
+\section{Research Scope and Limitations}
+
+The scope of this research is limited to locomotion-based continuous control tasks (Hopper, HalfCheetah, Ant, Walker2d). Key limitations include:
+
+\begin{itemize}
+    \item \textbf{Hardware Constraint:} Data is collected solely on Apple Silicon (M1 Pro).
+    \item \textbf{Fixed Budget:} Training is capped at 3,000,000 timesteps, which may affect absolute convergence in complex 3D tasks.
+    \item \textbf{Hyperparameter Rigidity:} The ``zero-tuning'' policy prioritizes assessing intrinsic robustness over peak possible performance.
+\end{itemize}
+
+\section{Outline}
+
+\begin{itemize}
+    \item \textbf{Chapter 2 (Background):} Defines continuous control and the MuJoCo environments.
+    \item \textbf{Chapter 3 (Literature Review):} Critically analyzes the development of PPO, ES, and ARS.
+    \item \textbf{Chapter 4 (Methodology):} Details the four-pillar evaluation framework, the shared noise table, and the software architecture.
+    \item \textbf{Chapter 5 (Results and Discussion):} Presents quantitative findings and qualitative gait observations.
+    \item \textbf{Chapter 6 (Conclusion):} Summarizes findings and provides recommendations for future robotic research.
+\end{itemize}
+
+\section{Summary}
+
+Chapter 1 has established the context, problem statement, research questions, aims, and methodology for this study. By moving beyond terminal scalar metrics and adopting a multidimensional evaluation framework, this research lays the groundwork for a high-resolution comparison of gradient-based and derivative-free optimization paradigms on modern ARM-based hardware.
+
+\clearpage
+\null % creates an empty page
+\clearpage
