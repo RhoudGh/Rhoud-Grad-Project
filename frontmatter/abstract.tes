@@ -1,0 +1,12 @@
+%
+% File: abstract.tex
+% Author: Tengxiang Li
+%
+\chapter{Abstract}
+\begin{SingleSpace}
+This project investigates the efficacy of three primary policy optimization paradigms—Proximal Policy Optimization (PPO), Evolution Strategies (ES), and Augmented Random Search (ARS)—in mastering high-dimensional continuous control tasks. While learning-based approaches have transformed autonomous systems research, significant challenges persist regarding algorithmic stability, sample efficiency, and computational robustness on modern hardware. This study evaluates these methods using the MuJoCo benchmark suite (Hopper, HalfCheetah, Ant, and Walker2d) within a unified, hardware-aware framework centered on the Apple M1 Pro architecture.
+
+The methodology utilizes a ``zero-tuning'' protocol and compares performance across 1-worker (serial) and 4-worker (parallel) configurations. Results reveal a fundamental trade-off: PPO maintains superior sample efficiency and consistency in serial environments, consistently producing naturalistic locomotion patterns. However, derivative-free methods—specifically ES—demonstrate superior parallel scalability, outperforming PPO in high-dimensional tasks like HalfCheetah when transitioned to multi-worker settings. While ARS achieves the highest temporal throughput in terms of wall-clock time, it suffers from the lowest sample efficiency and fails to reliably solve complex 3D morphologies within a fixed computational budget. Furthermore, qualitative analysis identifies an ``Efficiency-Integrity Gap,'' where high numerical rewards often stem from ``survival bonus traps'' or physics exploitation rather than functional movement. This research contributes a multidimensional benchmarking protocol and highlights the critical tension between numerical optimization and physical viability, providing a foundation for more reproducible and robust robotic control.
+
+\end{SingleSpace}
+% \clearpage
